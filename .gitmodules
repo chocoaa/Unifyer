@@ -1,0 +1,3 @@
+[submodule "prog/usb-flasher/fw_updates"]
+	path = prog/usb-flasher/fw_updates
+	url = https://github.com/Logitech/fw_updates
