@@ -46,15 +46,20 @@ class unifying_dongle:
   def __init__(self):
 
     # Get the dongle instance
-    self.dongle = usb.core.find(idVendor=0x046d, idProduct=0xc52b)
+    # Change the idProduct to your actual receiver id. Tested with receiver with "M/N:C-U0007" only.
+    self.dongle = usb.core.find(idVendor=0x046d, idProduct=0xc531)
     if self.dongle:
       logging.info("Found Logitech Unifying dongle - HID mode")
 
       # Detach the kernel driver
       logging.info("Detaching kernel driver from Logitech dongle - HID mode")
-      for ep in range(3):
-        if self.dongle.is_kernel_driver_active(ep):
-          self.dongle.detach_kernel_driver(ep)
+      for config in self.dongle:
+        logging.info(config.bNumInterfaces)
+        for i in range(config.bNumInterfaces):
+          try: 
+            self.dongle.detach_kernel_driver(i)
+          except Exception:
+            logging.info("Error detaching driver")
 
       # Set the default configuration
       self.dongle.set_configuration()
@@ -126,20 +131,23 @@ class unifying_dongle:
     # It's not 100% clear why this is necessary, but there is some state problem
     # when a Logitech dongle is first plugged in (and not used as an HID/HID++ device).
     # The following code makes everything work, but it's magic for the moment.
+    # Always change the fourth input of all self.send_command() call to (bNumInterfaces-1)
+    # ep may also need changes too, tested okay with 0x82 for nano and 0x83 for unifying dongles
     try:
-      self.send_command(0x21, 0x09, 0x0210, 0x0002, "\x10\xFF\x81\xF1\x00\x00\x00", ep=0x83)
+      self.send_command(0x21, 0x09, 0x0210, 0x0001, "\x10\xFF\x81\xF1\x00\x00\x00", ep=0x82)
     except Exception:
       pass
 
     # Request the firmware version
-    response = self.send_command(0x21, 0x09, 0x0210, 0x0002, "\x10\xFF\x81\xF1\x01\x00\x00", ep=0x83)
+    response = self.send_command(0x21, 0x09, 0x0210, 0x0001, "\x10\xFF\x81\xF1\x01\x00\x00", ep=0x82)
     if response[5] != 0x12:
       logging.info('Incompatible Logitech Unifying dongle (type {:02X}). Only Nordic Semiconductor based dongles are supported.'.format(response[5]))
+      # ONLY IF you are sure you are using a Nordic Semiconductor based dongle, comment out the line below.
       sys.exit(1)
 
     # Tell the dongle to reset into firmware update mode
     try:
-      self.send_command(0x21, 0x09, 0x0210, 0x0002, "\x10\xFF\x80\xF0\x49\x43\x50", ep=0x83)
+      self.send_command(0x21, 0x09, 0x0210, 0x0001, "\x10\xFF\x80\xF0\x49\x43\x50", ep=0x82)
     except usb.core.USBError:
 
       # An I/O error is possible here when the device resets before we can read the USB response
